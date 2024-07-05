@@ -19,7 +19,7 @@ SMTP_PORT = 587
 
 # Включение логирования
 logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    format='%(asctime)s - %(name)s - %(levellevel)s - %(message)s',
     level=logging.INFO
 )
 
@@ -64,8 +64,11 @@ async def comments(update: Update, context: CallbackContext):
 async def handle_file(update: Update, context: CallbackContext):
     document = update.message.document
 
+    logging.info(f"Получен файл: {document.file_name}")
+
     # Проверяем MIME-тип документа
     mime_type = document.mime_type if document.mime_type else document.get_file().mime_type
+    logging.info(f"MIME-тип файла: {mime_type}")
     valid_mime_types = [
         'application/vnd.ms-excel', 
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -106,6 +109,7 @@ async def send_confirmation_request(update: Update, context: CallbackContext):
     )
     
     try:
+        logging.info(f"Отправляем документ на согласование гендиректору. ID: {GEN_DIR_ID}, Файл: {context.user_data['file_path']}")
         await context.bot.send_document(
             chat_id=GEN_DIR_ID,
             document=open(context.user_data['file_path'], 'rb'),
