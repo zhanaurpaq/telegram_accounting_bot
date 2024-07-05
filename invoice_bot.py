@@ -116,7 +116,7 @@ def main():
             INVOICE_AMOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, invoice_amount)],
             INVOICE_DATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, invoice_date)],
             COMMENTS: [MessageHandler(filters.TEXT & ~filters.COMMAND, comments)],
-            FILE: [MessageHandler(filters.Document.ALL, handle_file)],
+            FILE: [MessageHandler(filters.Document.ALL & filters.Document, handle_file)],
         },
         fallbacks=[MessageHandler(filters.Regex('Выйти'), cancel)],
     )
