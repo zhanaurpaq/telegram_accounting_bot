@@ -58,28 +58,25 @@ async def invoice_date(update: Update, context: CallbackContext):
 
 async def comments(update: Update, context: CallbackContext):
     context.user_data['comments'] = update.message.text
-    await update.message.reply_text('Пожалуйста, загрузите файл счета (только форматы Excel, PDF, PNG, JPG).')
+    await update.message.reply_text('Пожалуйста, загрузите файл счета в формате Excel.')
     return FILE
 
 async def handle_file(update: Update, context: CallbackContext):
-    document = update.message.document or update.message.photo[-1]
+    document = update.message.document
 
     # Проверяем MIME-тип документа
     mime_type = document.mime_type if document.mime_type else document.get_file().mime_type
     valid_mime_types = [
         'application/vnd.ms-excel', 
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 
-        'application/pdf', 
-        'image/png', 
-        'image/jpeg'
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     ]
     
     if mime_type not in valid_mime_types:
-        await update.message.reply_text('Пожалуйста, загрузите файл в формате Excel, PDF, PNG или JPG.')
+        await update.message.reply_text('Пожалуйста, загрузите файл в формате Excel.')
         return FILE
 
     file = await document.get_file()
-    file_name = document.file_name if document.file_name else f"file_{document.file_id}.bin"
+    file_name = document.file_name if document.file_name else f"file_{document.file_id}.xlsx"
     file_path = f'invoice_{file_name}'
     await file.download_to_drive(file_path)  # Сохраняем файл
     logging.info(f"Файл сохранен: {file_path}")
@@ -105,7 +102,7 @@ def send_email(file_path, file_name, user_data):
         msg.attach(MIMEText(body, 'plain'))
 
         with open(file_path, 'rb') as f:
-            part = MIMEBase('application', 'octet-stream')
+            part = MIMEBase('application', 'vnd.openxmlformats-officedocument.spreadsheetml.sheet')
             part.set_payload(f.read())
             encoders.encode_base64(part)
             part.add_header('Content-Disposition', f'attachment; filename="{file_name}"')
@@ -133,7 +130,7 @@ def main():
             INVOICE_AMOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, invoice_amount)],
             INVOICE_DATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, invoice_date)],
             COMMENTS: [MessageHandler(filters.TEXT & ~filters.COMMAND, comments)],
-            FILE: [MessageHandler(filters.Document.ALL | filters.PHOTO, handle_file)],
+            FILE: [MessageHandler(filters.Document.ALL, handle_file)],
         },
         fallbacks=[MessageHandler(filters.Regex('Выйти'), cancel)],
     )
