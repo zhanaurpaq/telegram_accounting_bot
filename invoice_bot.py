@@ -66,14 +66,20 @@ async def handle_file(update: Update, context: CallbackContext):
 
     # Проверяем MIME-тип документа
     mime_type = document.mime_type if document.mime_type else document.get_file().mime_type
-    valid_mime_types = ['application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/pdf', 'image/png', 'image/jpeg']
+    valid_mime_types = [
+        'application/vnd.ms-excel', 
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 
+        'application/pdf', 
+        'image/png', 
+        'image/jpeg'
+    ]
     
     if mime_type not in valid_mime_types:
         await update.message.reply_text('Пожалуйста, загрузите файл в формате Excel, PDF, PNG или JPG.')
         return FILE
 
     file = await document.get_file()
-    file_name = document.file_name if document.file_name else f"file_{document.file_id}"
+    file_name = document.file_name if document.file_name else f"file_{document.file_id}.bin"
     file_path = f'invoice_{file_name}'
     await file.download_to_drive(file_path)  # Сохраняем файл
     logging.info(f"Файл сохранен: {file_path}")
@@ -102,7 +108,7 @@ def send_email(file_path, user_data):
             part = MIMEBase('application', 'octet-stream')
             part.set_payload(f.read())
             encoders.encode_base64(part)
-            part.add_header('Content-Disposition', f'attachment; filename={os.path.basename(file_path)}')
+            part.add_header('Content-Disposition', f'attachment; filename="{os.path.basename(file_path)}"')
             msg.attach(part)
 
         server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
