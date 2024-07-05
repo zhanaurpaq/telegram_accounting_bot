@@ -19,7 +19,7 @@ SMTP_PORT = 587
 
 # Включение логирования
 logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levellevel)s - %(message)s',
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 
@@ -104,12 +104,17 @@ async def send_confirmation_request(update: Update, context: CallbackContext):
         f"Комментарии: {context.user_data['comments']}\n\n"
         "Пожалуйста, подтвердите или отклоните."
     )
-    await context.bot.send_document(
-        chat_id=GEN_DIR_ID,
-        document=open(context.user_data['file_path'], 'rb'),
-        caption=message,
-        reply_markup=reply_markup
-    )
+    
+    try:
+        await context.bot.send_document(
+            chat_id=GEN_DIR_ID,
+            document=open(context.user_data['file_path'], 'rb'),
+            caption=message,
+            reply_markup=reply_markup
+        )
+        logging.info("Сообщение отправлено гендиректору на согласование.")
+    except Exception as e:
+        logging.error(f"Ошибка при отправке сообщения гендиректору: {e}")
 
 async def confirmation_handler(update: Update, context: CallbackContext):
     query = update.callback_query
