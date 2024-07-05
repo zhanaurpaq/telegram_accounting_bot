@@ -29,7 +29,7 @@ logging.basicConfig(
     INVOICE_DATE,
     COMMENTS,
     FILE,
-    CONFIRMATION,
+    WAIT_CONFIRMATION,
 ) = range(5)
 
 def get_main_menu():
@@ -89,23 +89,15 @@ async def handle_file(update: Update, context: CallbackContext):
 
     # Отправляем сообщение гендиректору на согласование
     await send_confirmation_request(update, context)
-    return CONFIRMATION
+    return WAIT_CONFIRMATION
 
 async def send_confirmation_request(update: Update, context: CallbackContext):
-    keyboard = [
-        [
-            InlineKeyboardButton("Согласовать", callback_data='confirm'),
-            InlineKeyboardButton("Отклонить", callback_data='reject')
-        ]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
     message = (
         f"Новый счет на согласование:\n\n"
         f"Сумма счета: {context.user_data['invoice_amount']}\n"
         f"Дата счета: {context.user_data['invoice_date']}\n"
         f"Комментарии: {context.user_data['comments']}\n\n"
-        "Пожалуйста, подтвердите или отклоните."
+        "Пожалуйста, подтвердите или отклоните, отправив 'Согласовать' или 'Отклонить'."
     )
     
     try:
@@ -113,27 +105,24 @@ async def send_confirmation_request(update: Update, context: CallbackContext):
         await context.bot.send_document(
             chat_id=GEN_DIR_ID,
             document=open(context.user_data['file_path'], 'rb'),
-            caption=message,
-            reply_markup=reply_markup
+            caption=message
         )
         logging.info("Сообщение отправлено гендиректору на согласование.")
     except Exception as e:
         logging.error(f"Ошибка при отправке сообщения гендиректору: {e}")
 
-async def confirmation_handler(update: Update, context: CallbackContext):
-    query = update.callback_query
-    logging.info(f"Обработчик подтверждения вызван с данными: {query.data}")
-    await query.answer()
+async def confirm_invoice(update: Update, context: CallbackContext):
+    logging.info("Получено подтверждение счета.")
+    await update.message.reply_text("Счет согласован. Отправляем на почту.")
+    # Отправляем файл на email
+    send_email(context.user_data['file_path'], context.user_data['file_name'], context.user_data)
+    await context.bot.send_message(chat_id=GEN_DIR_ID, text="Счет отправлен на почту.")
+    return ConversationHandler.END
 
-    if query.data == 'confirm':
-        await query.edit_message_text(text="Счет согласован. Отправляем на почту.")
-        # Отправляем файл на email
-        send_email(context.user_data['file_path'], context.user_data['file_name'], context.user_data)
-        await context.bot.send_message(chat_id=GEN_DIR_ID, text="Счет отправлен на почту.")
-    else:
-        await query.edit_message_text(text="Счет отклонен.")
-        await context.bot.send_message(chat_id=GEN_DIR_ID, text="Счет отклонен.")
-
+async def reject_invoice(update: Update, context: CallbackContext):
+    logging.info("Получено отклонение счета.")
+    await update.message.reply_text("Счет отклонен.")
+    await context.bot.send_message(chat_id=GEN_DIR_ID, text="Счет отклонен.")
     return ConversationHandler.END
 
 def send_email(file_path, file_name, user_data):
@@ -180,7 +169,10 @@ def main():
             INVOICE_DATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, invoice_date)],
             COMMENTS: [MessageHandler(filters.TEXT & ~filters.COMMAND, comments)],
             FILE: [MessageHandler(filters.Document.ALL, handle_file)],
-            CONFIRMATION: [CallbackQueryHandler(confirmation_handler)],
+            WAIT_CONFIRMATION: [
+                MessageHandler(filters.Regex('Согласовать'), confirm_invoice),
+                MessageHandler(filters.Regex('Отклонить'), reject_invoice)
+            ],
         },
         fallbacks=[MessageHandler(filters.Regex('Выйти'), cancel)],
     )
