@@ -20,7 +20,7 @@ SMTP_PORT = int(os.getenv('SMTP_PORT'))
 
 # Включение логирования
 logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    format='%(asctime)s - %(name)s - %(levellevel)s - %(message)s',
     level=logging.INFO
 )
 
@@ -85,12 +85,12 @@ async def handle_file(update: Update, context: CallbackContext):
     logging.info(f"Файл сохранен: {file_path}")
 
     # Отправляем файл на email гендиректора
-    send_email(file_path, context.user_data)
+    send_email(file_path, file_name, context.user_data)
 
     await update.message.reply_text('Счет отправлен на согласование. Спасибо!', reply_markup=get_main_menu())
     return ConversationHandler.END
 
-def send_email(file_path, user_data):
+def send_email(file_path, file_name, user_data):
     logging.info(f"Начало отправки email с данными: {user_data}")
     try:
         msg = MIMEMultipart()
@@ -108,7 +108,7 @@ def send_email(file_path, user_data):
             part = MIMEBase('application', 'octet-stream')
             part.set_payload(f.read())
             encoders.encode_base64(part)
-            part.add_header('Content-Disposition', f'attachment; filename="{os.path.basename(file_path)}"')
+            part.add_header('Content-Disposition', f'attachment; filename="{file_name}"')
             msg.attach(part)
 
         server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
