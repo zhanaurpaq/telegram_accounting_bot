@@ -1,7 +1,8 @@
 import logging
 import os
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext, ConversationHandler, CallbackQueryHandler
+from telegram import Update
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext, ConversationHandler
+
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
@@ -19,7 +20,7 @@ SMTP_PORT = 587
 
 # Включение логирования
 logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levellevel)s - %(message)s',
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 
@@ -83,7 +84,7 @@ async def handle_file(update: Update, context: CallbackContext):
 
     user_id = update.message.from_user.id
     if user_id == GEN_DIR_ID:
-        await update.message.reply_text('Счет загружен. Пожалуйста, подтвердите или отклоните, отправив "Согласовать" или "Отклонить".')
+        await update.message.reply_text('Счет загружен. Пожалуйста, подтвердите или отклоните, отправив "+" или "-".')
         return WAIT_CONFIRMATION
     else:
         await send_confirmation_request(update, context)
@@ -95,7 +96,7 @@ async def send_confirmation_request(update: Update, context: CallbackContext):
         f"Сумма счета: {context.user_data['invoice_amount']}\n"
         f"Дата счета: {context.user_data['invoice_date']}\n"
         f"Комментарии: {context.user_data['comments']}\n\n"
-        "Пожалуйста, подтвердите или отклоните, отправив 'Согласовать' или 'Отклонить'."
+        "Пожалуйста, подтвердите или отклоните, отправив '+' или '-'."
     )
     
     try:
@@ -168,8 +169,8 @@ def main():
             COMMENTS: [MessageHandler(filters.TEXT & ~filters.COMMAND, comments)],
             FILE: [MessageHandler(filters.Document.ALL, handle_file)],
             WAIT_CONFIRMATION: [
-                MessageHandler(filters.Regex('Согласовать'), confirm_invoice),
-                MessageHandler(filters.Regex('Отклонить'), reject_invoice)
+                MessageHandler(filters.Regex(r'\+'), confirm_invoice),
+                MessageHandler(filters.Regex(r'-'), reject_invoice)
             ],
         },
         fallbacks=[CommandHandler('cancel', cancel)],
