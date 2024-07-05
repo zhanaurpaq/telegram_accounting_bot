@@ -1,22 +1,21 @@
 import logging
 import os
-from telegram import Update, ReplyKeyboardMarkup
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext, ConversationHandler
+from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext, ConversationHandler, CallbackQueryHandler
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
 from email import encoders
 from email.mime.text import MIMEText
 
-# Вставьте ваш API Token из переменных окружения
-API_TOKEN = os.getenv('API_TOKEN')
-
-# Email settings из переменных окружения
-EMAIL_USER = os.getenv('EMAIL_USER')
-EMAIL_PASSWORD = os.getenv('EMAIL_PASSWORD')
-EMAIL_RECEIVER = os.getenv('EMAIL_RECEIVER')
-SMTP_SERVER = os.getenv('SMTP_SERVER')
-SMTP_PORT = int(os.getenv('SMTP_PORT'))
+# Вставьте ваши учетные данные
+API_TOKEN = '7399678662:AAGhvtbvC0ovTuLtj12bN5nJFDiKJfNH9qA'
+GEN_DIR_ID = 593169165  # ID гендиректора в Telegram
+EMAIL_USER = 'madi.turysbek.00@mail.ru'
+EMAIL_PASSWORD = 'ykmVMzhVih9Jz3YbpE7d'
+EMAIL_RECEIVER = 'zhanaurpak2021@gmail.com'
+SMTP_SERVER = 'smtp.mail.ru'
+SMTP_PORT = 587
 
 # Включение логирования
 logging.basicConfig(
@@ -30,7 +29,8 @@ logging.basicConfig(
     INVOICE_DATE,
     COMMENTS,
     FILE,
-) = range(4)
+    CONFIRMATION,
+) = range(5)
 
 def get_main_menu():
     return ReplyKeyboardMarkup([['Отправить счет', 'Помощь', 'Выйти']], resize_keyboard=True)
@@ -81,10 +81,49 @@ async def handle_file(update: Update, context: CallbackContext):
     await file.download_to_drive(file_path)  # Сохраняем файл
     logging.info(f"Файл сохранен: {file_path}")
 
-    # Отправляем файл на email гендиректора
-    send_email(file_path, file_name, context.user_data)
+    context.user_data['file_path'] = file_path
+    context.user_data['file_name'] = file_name
 
-    await update.message.reply_text('Счет отправлен на согласование. Спасибо!', reply_markup=get_main_menu())
+    # Отправляем сообщение гендиректору на согласование
+    await send_confirmation_request(update, context)
+    return CONFIRMATION
+
+async def send_confirmation_request(update: Update, context: CallbackContext):
+    keyboard = [
+        [
+            InlineKeyboardButton("Согласовать", callback_data='confirm'),
+            InlineKeyboardButton("Отклонить", callback_data='reject')
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    message = (
+        f"Новый счет на согласование:\n\n"
+        f"Сумма счета: {context.user_data['invoice_amount']}\n"
+        f"Дата счета: {context.user_data['invoice_date']}\n"
+        f"Комментарии: {context.user_data['comments']}\n\n"
+        "Пожалуйста, подтвердите или отклоните."
+    )
+    await context.bot.send_document(
+        chat_id=GEN_DIR_ID,
+        document=open(context.user_data['file_path'], 'rb'),
+        caption=message,
+        reply_markup=reply_markup
+    )
+
+async def confirmation_handler(update: Update, context: CallbackContext):
+    query = update.callback_query
+    await query.answer()
+
+    if query.data == 'confirm':
+        await query.edit_message_text(text="Счет согласован. Отправляем на почту.")
+        # Отправляем файл на email
+        send_email(context.user_data['file_path'], context.user_data['file_name'], context.user_data)
+        await context.bot.send_message(chat_id=GEN_DIR_ID, text="Счет отправлен на почту.")
+    else:
+        await query.edit_message_text(text="Счет отклонен.")
+        await context.bot.send_message(chat_id=GEN_DIR_ID, text="Счет отклонен.")
+
     return ConversationHandler.END
 
 def send_email(file_path, file_name, user_data):
@@ -131,6 +170,7 @@ def main():
             INVOICE_DATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, invoice_date)],
             COMMENTS: [MessageHandler(filters.TEXT & ~filters.COMMAND, comments)],
             FILE: [MessageHandler(filters.Document.ALL, handle_file)],
+            CONFIRMATION: [CallbackQueryHandler(confirmation_handler)],
         },
         fallbacks=[MessageHandler(filters.Regex('Выйти'), cancel)],
     )
