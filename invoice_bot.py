@@ -122,6 +122,7 @@ async def send_confirmation_request(update: Update, context: CallbackContext):
 
 async def confirmation_handler(update: Update, context: CallbackContext):
     query = update.callback_query
+    logging.info(f"Обработчик подтверждения вызван с данными: {query.data}")
     await query.answer()
 
     if query.data == 'confirm':
