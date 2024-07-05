@@ -36,7 +36,7 @@ async def start(update: Update, context: CallbackContext):
     menu_keyboard = [
         ["Отправить счет", "Помощь"]
     ]
-    reply_markup = ReplyKeyboardMarkup(menu_keyboard, one_time_keyboard=True)
+    reply_markup = ReplyKeyboardMarkup(menu_keyboard, one_time_keyboard=True, resize_keyboard=True)
     await update.message.reply_text(f'Здравствуйте, {user_first_name}! Как я могу вам помочь?', reply_markup=reply_markup)
     return SENDER_NAME
 
