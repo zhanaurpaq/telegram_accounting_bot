@@ -58,11 +58,20 @@ async def invoice_date(update: Update, context: CallbackContext):
 
 async def comments(update: Update, context: CallbackContext):
     context.user_data['comments'] = update.message.text
-    await update.message.reply_text('Пожалуйста, загрузите файл счета.')
+    await update.message.reply_text('Пожалуйста, загрузите файл счета (только форматы Excel, PDF, PNG, JPG).')
     return FILE
 
 async def handle_file(update: Update, context: CallbackContext):
     document = update.message.document or update.message.photo[-1]
+
+    # Проверяем MIME-тип документа
+    mime_type = document.mime_type if document.mime_type else document.get_file().mime_type
+    valid_mime_types = ['application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/pdf', 'image/png', 'image/jpeg']
+    
+    if mime_type not in valid_mime_types:
+        await update.message.reply_text('Пожалуйста, загрузите файл в формате Excel, PDF, PNG или JPG.')
+        return FILE
+
     file = await document.get_file()
     file_name = document.file_name if document.file_name else f"file_{document.file_id}"
     file_path = f'invoice_{file_name}'
@@ -118,7 +127,7 @@ def main():
             INVOICE_AMOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, invoice_amount)],
             INVOICE_DATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, invoice_date)],
             COMMENTS: [MessageHandler(filters.TEXT & ~filters.COMMAND, comments)],
-            FILE: [MessageHandler(filters.ATTACHMENT, handle_file)],
+            FILE: [MessageHandler(filters.Document.ALL | filters.PHOTO, handle_file)],
         },
         fallbacks=[MessageHandler(filters.Regex('Выйти'), cancel)],
     )
