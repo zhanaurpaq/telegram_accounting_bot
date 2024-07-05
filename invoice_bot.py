@@ -1,7 +1,12 @@
 import logging
 import os
-from telegram import Update
+from telegram import Update, Document
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext, ConversationHandler
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email import encoders
+from email.mime.text import MIMEText
 
 # Вставьте ваш API Token из переменных окружения
 API_TOKEN = os.getenv('API_TOKEN')
@@ -24,7 +29,8 @@ logging.basicConfig(
     INVOICE_AMOUNT,
     INVOICE_DATE,
     COMMENTS,
-) = range(3)
+    FILE,
+) = range(4)
 
 async def start(update: Update, context: CallbackContext):
     await update.message.reply_text('Здравствуйте! Напишите "счет", чтобы начать процесс отправки счета.')
@@ -45,14 +51,22 @@ async def invoice_date(update: Update, context: CallbackContext):
 
 async def comments(update: Update, context: CallbackContext):
     context.user_data['comments'] = update.message.text
+    await update.message.reply_text('Пожалуйста, загрузите файл счета.')
+    return FILE
 
-    # Отправляем данные на email гендиректора
-    send_email(context.user_data)
+async def handle_file(update: Update, context: CallbackContext):
+    file = await update.message.document.get_file()
+    file_path = f'invoice_{update.message.document.file_name}'
+    await file.download_to_drive(file_path)  # Сохраняем файл
+    logging.info(f"Файл сохранен: {file_path}")
+
+    # Отправляем файл на email гендиректора
+    send_email(file_path, context.user_data)
 
     await update.message.reply_text('Счет отправлен на согласование. Спасибо!')
     return ConversationHandler.END
 
-def send_email(user_data):
+def send_email(file_path, user_data):
     logging.info(f"Начало отправки email с данными: {user_data}")
     try:
         msg = MIMEMultipart()
@@ -65,6 +79,13 @@ def send_email(user_data):
             f"Комментарии: {user_data['comments']}\n"
         )
         msg.attach(MIMEText(body, 'plain'))
+
+        with open(file_path, 'rb') as f:
+            part = MIMEBase('application', 'octet-stream')
+            part.set_payload(f.read())
+            encoders.encode_base64(part)
+            part.add_header('Content-Disposition', f'attachment; filename= {os.path.basename(file_path)}')
+            msg.attach(part)
 
         server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
         server.starttls()
@@ -88,6 +109,7 @@ def main():
             INVOICE_AMOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, invoice_amount)],
             INVOICE_DATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, invoice_date)],
             COMMENTS: [MessageHandler(filters.TEXT & ~filters.COMMAND, comments)],
+            FILE: [MessageHandler(filters.Document.ALL, handle_file)],
         },
         fallbacks=[CommandHandler('cancel', cancel)],
     )
