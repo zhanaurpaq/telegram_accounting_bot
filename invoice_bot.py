@@ -1,6 +1,6 @@
 import logging
 import os
-from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext, ConversationHandler, CallbackQueryHandler
 import smtplib
 from email.mime.multipart import MIMEMultipart
@@ -19,7 +19,7 @@ SMTP_PORT = 587
 
 # Включение логирования
 logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    format='%(asctime)s - %(name)s - %(levellevel)s - %(message)s',
     level=logging.INFO
 )
 
@@ -32,18 +32,12 @@ logging.basicConfig(
     WAIT_CONFIRMATION,
 ) = range(5)
 
-def get_main_menu():
-    return ReplyKeyboardMarkup([['Отправить счет', 'Помощь', 'Выйти']], resize_keyboard=True)
-
 async def start(update: Update, context: CallbackContext):
-    await update.message.reply_text('Здравствуйте! Выберите действие:', reply_markup=get_main_menu())
-
-async def help_command(update: Update, context: CallbackContext):
-    whatsapp_url = "https://wa.me/77083795469"
-    await update.message.reply_text(f'Если вам нужна помощь, свяжитесь с нами в WhatsApp: {whatsapp_url}', reply_markup=get_main_menu())
-
-async def start_invoice(update: Update, context: CallbackContext):
-    await update.message.reply_text('Введите сумму счета.')
+    user_id = update.message.from_user.id
+    if user_id == GEN_DIR_ID:
+        await update.message.reply_text('Здравствуйте! Вы можете загружать и согласовывать счета.')
+    else:
+        await update.message.reply_text('Здравствуйте! Пожалуйста, загрузите счет для согласования.')
     return INVOICE_AMOUNT
 
 async def invoice_amount(update: Update, context: CallbackContext):
@@ -87,9 +81,13 @@ async def handle_file(update: Update, context: CallbackContext):
     context.user_data['file_path'] = file_path
     context.user_data['file_name'] = file_name
 
-    # Отправляем сообщение гендиректору на согласование
-    await send_confirmation_request(update, context)
-    return WAIT_CONFIRMATION
+    user_id = update.message.from_user.id
+    if user_id == GEN_DIR_ID:
+        await update.message.reply_text('Счет загружен. Пожалуйста, подтвердите или отклоните, отправив "Согласовать" или "Отклонить".')
+        return WAIT_CONFIRMATION
+    else:
+        await send_confirmation_request(update, context)
+        return ConversationHandler.END
 
 async def send_confirmation_request(update: Update, context: CallbackContext):
     message = (
@@ -156,14 +154,14 @@ def send_email(file_path, file_name, user_data):
         logging.error(f"Ошибка при отправке email: {e}")
 
 async def cancel(update: Update, context: CallbackContext):
-    await update.message.reply_text('Операция отменена.', reply_markup=get_main_menu())
+    await update.message.reply_text('Операция отменена.')
     return ConversationHandler.END
 
 def main():
     application = Application.builder().token(API_TOKEN).build()
 
     conv_handler = ConversationHandler(
-        entry_points=[MessageHandler(filters.Regex('Отправить счет'), start_invoice)],
+        entry_points=[CommandHandler('start', start)],
         states={
             INVOICE_AMOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, invoice_amount)],
             INVOICE_DATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, invoice_date)],
@@ -174,11 +172,9 @@ def main():
                 MessageHandler(filters.Regex('Отклонить'), reject_invoice)
             ],
         },
-        fallbacks=[MessageHandler(filters.Regex('Выйти'), cancel)],
+        fallbacks=[CommandHandler('cancel', cancel)],
     )
 
-    application.add_handler(CommandHandler('start', start))
-    application.add_handler(MessageHandler(filters.Regex('Помощь'), help_command))
     application.add_handler(conv_handler)
 
     logging.info("Бот запущен, ожидает сообщений")
