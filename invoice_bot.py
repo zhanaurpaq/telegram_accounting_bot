@@ -36,10 +36,10 @@ logging.basicConfig(
 async def start(update: Update, context: CallbackContext):
     user_id = update.message.from_user.id
     if user_id == GEN_DIR_ID:
-        await update.message.reply_text('Здравствуйте! Вы можете загружать и согласовывать счета.')
+        await update.message.reply_text('Здравствуйте! Вы можете только согласовывать счета.')
     else:
         await update.message.reply_text('Здравствуйте! Пожалуйста, загрузите счет для согласования.')
-    return INVOICE_AMOUNT
+        return INVOICE_AMOUNT
 
 async def invoice_amount(update: Update, context: CallbackContext):
     context.user_data['invoice_amount'] = update.message.text
@@ -82,13 +82,9 @@ async def handle_file(update: Update, context: CallbackContext):
     context.user_data['file_path'] = file_path
     context.user_data['file_name'] = file_name
 
-    user_id = update.message.from_user.id
-    if user_id == GEN_DIR_ID:
-        await update.message.reply_text('Счет загружен. Пожалуйста, подтвердите или отклоните, отправив "+" или "-".')
-        return WAIT_CONFIRMATION
-    else:
-        await send_confirmation_request(update, context)
-        return ConversationHandler.END
+    # Отправляем сообщение гендиректору на согласование
+    await send_confirmation_request(update, context)
+    return ConversationHandler.END
 
 async def send_confirmation_request(update: Update, context: CallbackContext):
     message = (
