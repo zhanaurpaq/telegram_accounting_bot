@@ -62,8 +62,9 @@ async def comments(update: Update, context: CallbackContext):
     return FILE
 
 async def handle_file(update: Update, context: CallbackContext):
-    file = await update.message.document.get_file()
-    file_path = f'invoice_{update.message.document.file_name}'
+    document = update.message.document or update.message.photo[-1]
+    file = await document.get_file()
+    file_path = f'invoice_{document.file_id}.bin'
     await file.download_to_drive(file_path)  # Сохраняем файл
     logging.info(f"Файл сохранен: {file_path}")
 
@@ -116,7 +117,7 @@ def main():
             INVOICE_AMOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, invoice_amount)],
             INVOICE_DATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, invoice_date)],
             COMMENTS: [MessageHandler(filters.TEXT & ~filters.COMMAND, comments)],
-            FILE: [MessageHandler(filters.Document.ALL & filters.Document, handle_file)],
+            FILE: [MessageHandler(filters.ATTACHMENT, handle_file)],
         },
         fallbacks=[MessageHandler(filters.Regex('Выйти'), cancel)],
     )
