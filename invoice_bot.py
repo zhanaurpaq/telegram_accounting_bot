@@ -1,6 +1,6 @@
 import logging
 import os
-from telegram import Update
+from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext, ConversationHandler
 import smtplib
 from email.mime.multipart import MIMEMultipart
@@ -18,9 +18,6 @@ EMAIL_RECEIVER = os.getenv('EMAIL_RECEIVER')
 SMTP_SERVER = os.getenv('SMTP_SERVER')
 SMTP_PORT = int(os.getenv('SMTP_PORT'))
 
-# Номер WhatsApp для помощи
-WHATSAPP_NUMBER = '+77083795469'
-
 # Включение логирования
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -29,35 +26,21 @@ logging.basicConfig(
 
 # Состояния разговора
 (
-    MENU,
     INVOICE_AMOUNT,
     INVOICE_DATE,
     COMMENTS,
     FILE,
-) = range(5)
+) = range(4)
+
+def get_main_menu():
+    return ReplyKeyboardMarkup([['Отправить счет', 'Помощь', 'Выйти']], resize_keyboard=True)
 
 async def start(update: Update, context: CallbackContext):
-    await update.message.reply_text('Выберите действие:',
-                                    reply_markup={
-                                        'keyboard': [['Отправить счет'], ['Помощь'], ['Выйти']],
-                                        'resize_keyboard': True,
-                                    })
-    return MENU
+    await update.message.reply_text('Здравствуйте! Выберите действие:', reply_markup=get_main_menu())
 
-async def menu(update: Update, context: CallbackContext):
-    text = update.message.text.lower()
-
-    if text == 'отправить счет':
-        await start_invoice(update, context)
-    elif text == 'помощь':
-        await help_command(update, context)
-    elif text == 'выйти':
-        await update.message.reply_text('Вы вышли из меню.')
-        return ConversationHandler.END
-    else:
-        await update.message.reply_text('Выберите одно из предложенных действий.')
-
-    return MENU
+async def help_command(update: Update, context: CallbackContext):
+    whatsapp_url = "https://wa.me/77083795469"
+    await update.message.reply_text(f'Если вам нужна помощь, свяжитесь с нами в WhatsApp: {whatsapp_url}', reply_markup=get_main_menu())
 
 async def start_invoice(update: Update, context: CallbackContext):
     await update.message.reply_text('Введите сумму счета.')
@@ -81,13 +64,13 @@ async def comments(update: Update, context: CallbackContext):
 async def handle_file(update: Update, context: CallbackContext):
     file = await update.message.document.get_file()
     file_path = f'invoice_{update.message.document.file_name}'
-    await file.download(file_path)  # Сохраняем файл
+    await file.download_to_drive(file_path)  # Сохраняем файл
     logging.info(f"Файл сохранен: {file_path}")
 
     # Отправляем файл на email гендиректора
     send_email(file_path, context.user_data)
 
-    await update.message.reply_text('Счет отправлен на согласование. Спасибо!')
+    await update.message.reply_text('Счет отправлен на согласование. Спасибо!', reply_markup=get_main_menu())
     return ConversationHandler.END
 
 def send_email(file_path, user_data):
@@ -120,28 +103,26 @@ def send_email(file_path, user_data):
     except Exception as e:
         logging.error(f"Ошибка при отправке email: {e}")
 
-async def help_command(update: Update, context: CallbackContext):
-    await update.message.reply_text(f'Если вам нужна помощь, свяжитесь с нами по WhatsApp: {WHATSAPP_NUMBER}')
-
 async def cancel(update: Update, context: CallbackContext):
-    await update.message.reply_text('Операция отменена.')
+    await update.message.reply_text('Операция отменена.', reply_markup=get_main_menu())
     return ConversationHandler.END
 
 def main():
     application = Application.builder().token(API_TOKEN).build()
 
     conv_handler = ConversationHandler(
-        entry_points=[CommandHandler('start', start)],
+        entry_points=[MessageHandler(filters.Regex('Отправить счет'), start_invoice)],
         states={
-            MENU: [MessageHandler(filters.Text & ~filters.Command, menu)],
-            INVOICE_AMOUNT: [MessageHandler(filters.Text & ~filters.Command, invoice_amount)],
-            INVOICE_DATE: [MessageHandler(filters.Text & ~filters.Command, invoice_date)],
-            COMMENTS: [MessageHandler(filters.Text & ~filters.Command, comments)],
-            FILE: [MessageHandler(filters.Document, handle_file)],
+            INVOICE_AMOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND, invoice_amount)],
+            INVOICE_DATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, invoice_date)],
+            COMMENTS: [MessageHandler(filters.TEXT & ~filters.COMMAND, comments)],
+            FILE: [MessageHandler(filters.Document.ALL, handle_file)],
         },
-        fallbacks=[CommandHandler('cancel', cancel)],
+        fallbacks=[MessageHandler(filters.Regex('Выйти'), cancel)],
     )
 
+    application.add_handler(CommandHandler('start', start))
+    application.add_handler(MessageHandler(filters.Regex('Помощь'), help_command))
     application.add_handler(conv_handler)
 
     logging.info("Бот запущен, ожидает сообщений")
