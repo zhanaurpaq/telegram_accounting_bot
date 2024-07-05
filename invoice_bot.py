@@ -1,12 +1,7 @@
 import logging
 import os
-from telegram import Update
+from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext, ConversationHandler
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.base import MIMEBase
-from email import encoders
-from email.mime.text import MIMEText
 
 # Вставьте ваш API Token из переменных окружения
 API_TOKEN = os.getenv('API_TOKEN')
@@ -34,9 +29,15 @@ logging.basicConfig(
     FILE,
 ) = range(6)
 
+# Функция для приветствия пользователя и отображения меню
 async def start(update: Update, context: CallbackContext):
     logging.info("Команда /start получена")
-    await update.message.reply_text('Здравствуйте! Пожалуйста, введите ваше ФИО.')
+    user_first_name = update.message.chat.first_name
+    menu_keyboard = [
+        ["Отправить счет", "Помощь"]
+    ]
+    reply_markup = ReplyKeyboardMarkup(menu_keyboard, one_time_keyboard=True)
+    await update.message.reply_text(f'Здравствуйте, {user_first_name}! Как я могу вам помочь?', reply_markup=reply_markup)
     return SENDER_NAME
 
 async def sender_name(update: Update, context: CallbackContext):
@@ -109,6 +110,9 @@ def send_email(file_path, user_data):
     except Exception as e:
         logging.error(f"Ошибка при отправке email: {e}")
 
+async def help_command(update: Update, context: CallbackContext):
+    await update.message.reply_text('Я могу помочь вам с отправкой счета на оплату. Используйте команды: \n/start - начать процесс отправки счета \n/cancel - отменить процесс')
+
 async def cancel(update: Update, context: CallbackContext):
     await update.message.reply_text('Операция отменена.')
     return ConversationHandler.END
@@ -130,10 +134,10 @@ def main():
     )
 
     application.add_handler(conv_handler)
+    application.add_handler(CommandHandler('help', help_command))
 
     logging.info("Бот запущен, ожидает сообщений")
     application.run_polling()
 
 if __name__ == '__main__':
     main()
-
