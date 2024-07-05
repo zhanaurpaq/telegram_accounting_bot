@@ -64,7 +64,8 @@ async def comments(update: Update, context: CallbackContext):
 async def handle_file(update: Update, context: CallbackContext):
     document = update.message.document or update.message.photo[-1]
     file = await document.get_file()
-    file_path = f'invoice_{document.file_id}.bin'
+    file_name = document.file_name if document.file_name else f"file_{document.file_id}"
+    file_path = f'invoice_{file_name}'
     await file.download_to_drive(file_path)  # Сохраняем файл
     logging.info(f"Файл сохранен: {file_path}")
 
@@ -92,7 +93,7 @@ def send_email(file_path, user_data):
             part = MIMEBase('application', 'octet-stream')
             part.set_payload(f.read())
             encoders.encode_base64(part)
-            part.add_header('Content-Disposition', f'attachment; filename= {os.path.basename(file_path)}')
+            part.add_header('Content-Disposition', f'attachment; filename={os.path.basename(file_path)}')
             msg.attach(part)
 
         server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
